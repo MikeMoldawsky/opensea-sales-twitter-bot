@@ -75,17 +75,24 @@ function sortOpenSeaCollectionEventsAndTweet(response, collection, tags) {
     console.log(`<<<<< Successfully tweeted events for collection: ${collection}`)
 }
 
+function sleep(ms) {
+    console.log(`Sleeping for ${ms} ms before starting next collection...`)
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Poll OpenSea every 60 seconds & retrieve all sales for a given collection in either the time since the last sale OR in the last minute
 setInterval(() => {
     const collections = JSON.parse(process.env.OPENSEA_COLLECTIONS);
     console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
-    _.each(collections, (collection) => {
+    _.each(collections, async (collection) => {
         console.log(`##### Tweeting for collection: ${collection} ######`)
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().startOf('minute').subtract(120, "seconds").unix();
+
         getOpenSeaCollectionSalesResponse(lastSaleTime, collection)
             .then((response) => sortOpenSeaCollectionEventsAndTweet(response, collection, process.env.TWITTER_TAGS))
             .catch((error) => console.error(error)
             );
+        await sleep(5000);
         console.log(`##### Successfully tweeted for collection: ${collection} ######`)
     });
     console.log(`<<<<<<<<<< Successfully fetched all all sales for collections: ${collections}`)
