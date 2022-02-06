@@ -87,7 +87,6 @@ setInterval(() => {
     _.each(collections, async (collection) => {
         console.log(`##### Tweeting for collection: ${collection} ######`)
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().startOf('minute').subtract(120, "seconds").unix();
-
         getOpenSeaCollectionSalesResponse(lastSaleTime, collection)
             .then((response) => sortOpenSeaCollectionEventsAndTweet(response, collection, process.env.TWITTER_TAGS))
             .catch((error) => console.error(error)
