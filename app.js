@@ -3,10 +3,10 @@ const _ = require('lodash');
 const moment = require('moment');
 const { ethers } = require('ethers');
 const tweet = require('./tweet');
-const cache = require('./cache');
+const lastSaleForCollectionCache = require('./lastSaleForCollectionCache');
 
 // Format tweet text
-function formatAndSendTweet(event) {
+function formatAndSendTweet(event, collection) {
     // Handle both individual items + bundle sales
     const assetName = _.get(event, ['asset', 'name'], _.get(event, ['asset_bundle', 'name']));
     const openseaLink = _.get(event, ['asset', 'permalink'], _.get(event, ['asset_bundle', 'permalink']));
@@ -21,7 +21,7 @@ function formatAndSendTweet(event) {
     const formattedEthPrice = formattedUnits * tokenEthPrice;
     const formattedUsdPrice = formattedUnits * tokenUsdPrice;
 
-    const tweetText = `${assetName} bought for ${formattedEthPrice}${ethers.constants.EtherSymbol} ($${Number(formattedUsdPrice).toFixed(2)}) #NFT ${openseaLink}`;
+    const tweetText = `${assetName} bought for ${formattedEthPrice}${ethers.constants.EtherSymbol} ($${Number(formattedUsdPrice).toFixed(2)}) #refikanadol #NFT ${openseaLink}`;
 
     console.log(tweetText);
 
@@ -38,41 +38,55 @@ function formatAndSendTweet(event) {
     return tweet.tweet(tweetText);
 }
 
-// Poll OpenSea every 60 seconds & retrieve all sales for a given collection in either the time since the last sale OR in the last minute
-setInterval(() => {
-    const lastSaleTime = cache.get('lastSaleTime', null) || moment().startOf('minute').subtract(59, "seconds").unix();
-
-    console.log(`Last sale (in seconds since Unix epoch): ${cache.get('lastSaleTime', null)}`);
-
-    axios.get('https://api.opensea.io/api/v1/events', {
+function getOpenSeaCollectionSalesResponse(lastSaleTime, collectionSlug) {
+    console.log(`>>>>> Fetching OpenSea sales for collection: ${collectionSlug} since: ${lastSaleTime}`)
+    const openSeaEventsApi = 'https://api.opensea.io/api/v1/events';
+    // const openSeaEventsApi = 'https://testnets-api.opensea.io/api/v1/events';
+    // const X_API_KEY_TEST_OPENSEA = '5bec8ae0372044cab1bef0d866c98618' // remove
+    return axios.get(openSeaEventsApi, {
         headers: {
             'X-API-KEY': process.env.X_API_KEY
         },
         params: {
-            collection_slug: process.env.OPENSEA_COLLECTION_SLUG,
+            collection_slug: collectionSlug,
             event_type: 'successful',
             occurred_after: lastSaleTime,
             only_opensea: 'false'
         }
-    }).then((response) => {
-        const events = _.get(response, ['data', 'asset_events']);
-
-        const sortedEvents = _.sortBy(events, function(event) {
-            const created = _.get(event, 'created_date');
-
-            return new Date(created);
-        })
-
-        console.log(`${events.length} sales since the last one...`);
-
-        _.each(sortedEvents, (event) => {
-            const created = _.get(event, 'created_date');
-
-            cache.set('lastSaleTime', moment(created).unix());
-
-            return formatAndSendTweet(event);
-        });
-    }).catch((error) => {
-        console.error(error);
     });
-}, 60000);
+}
+
+function sortOpenSeaCollectionEventsAndTweet(response, collection) {
+    const events = _.get(response, ['data', 'asset_events']);
+    console.log(`>>>>> Tweeting ${events.length} events for collection: ${collection}`)
+    const sortedEvents = _.sortBy(events, function (event) {
+        const created = _.get(event, 'created_date');
+
+        return new Date(created);
+    });
+
+
+    _.each(sortedEvents, (event) => {
+        const created = _.get(event, 'created_date');
+        console.log(`Setting lastSale for collection: ${collection} to ${created}`)
+        lastSaleForCollectionCache.set(collection, moment(created).unix());
+        return formatAndSendTweet(event, collection);
+    });
+    console.log(`<<<<< Successfully tweeted events for collection: ${collection}`)
+}
+
+// Poll OpenSea every 60 seconds & retrieve all sales for a given collection in either the time since the last sale OR in the last minute
+setInterval(() => {
+    const collections = JSON.parse(process.env.OPENSEA_COLLECTION_SLUG);
+    console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
+    _.each(collections, (collection) => {
+        console.log(`##### Tweeting for collection: ${collection} ######`)
+        const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().startOf('minute').subtract(120, "seconds").unix();
+        getOpenSeaCollectionSalesResponse(lastSaleTime, collection)
+            .then((response) => sortOpenSeaCollectionEventsAndTweet(response, collection))
+            .catch((error) => console.error(error)
+            );
+        console.log(`##### Successfully tweeted for collection: ${collection} ######`)
+    });
+    console.log(`<<<<<<<<<< Successfully fetched all all sales for collections: ${collections}`)
+    }, 120000);
