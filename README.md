@@ -36,8 +36,9 @@ In the Settings section of your Heroku app you'll see a Config Vars section. Add
 - **CONSUMER_SECRET** - Your Twitter Developer App's Consumer Secret
 - **ACCESS_TOKEN_KEY** - The Access Token Key of the Twitter Account your bot is posting from
 - **ACCESS_TOKEN_SECRET** - The Access Token Secret of the Twitter Account your bot is posting from
-- **OPENSEA_COLLECTION_SLUG** - The OpenSea collection name you wish to track (e.g. `cryptopunks`)
+- **OPENSEA_COLLECTIONS** - The OpenSea collection name you wish to track (e.g. `["cryptopunks"]`)
 - **X_API_KEY** - Your unique OpenSea API key
+- **TWITTER_TAGS** - Configure Twitter tags as an array, appended to the end of the tweet (should include '#' e.g. `#artist1_name #artist2_name`)
 
 Now you're ready to release - just push up the code via. git to the Heroku remote (see [Heroku Remote](https://devcenter.heroku.com/articles/git#creating-a-heroku-remote) if unsure how).
 
