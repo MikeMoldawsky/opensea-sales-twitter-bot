@@ -16,23 +16,22 @@ setInterval(() => {
     const openSeaClient = createOpenSeaClient();
     console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
     _.each(collections, async (collection) => {
-        console.log(`##### Tweeting for collection: ${collection} ######`)
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().startOf('minute').subtract(120, "seconds").toDate();
 
         openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
             .then( nftSales => {
+                console.log(`##### Tweeting (if needed) for collection: ${collection} ######`)
                 nftSales.forEach( nftSale => {
-                    console.log(`Setting lastSale for collection: ${collection} to ${nftSale.created_date}`)
                     const saleTweet = new SaleTweet(nftSale);
                     // TODO: await for tweet
                     tweet.tweet(saleTweet.text);
                     lastSaleForCollectionCache.set(collection, nftSale.created_date);
-                    console.log(`<<<<< Successfully tweeted events for collection: ${collection}`)
+                    console.log(`Successfully tweeted for collection: ${collection} with created_time ${nftSale.created_date}`)
                 });
+                console.log(`##### Successfully tweeted ${nftSales.length} for collection: ${collection}  ######`)
             })
             .catch((error) => console.error(error)
             );
-        console.log(`##### Successfully tweeted for collection: ${collection} ######`)
         await sleep(5000);
     });
     console.log(`<<<<<<<<<< Successfully fetched all all sales for collections: ${collections}`)
