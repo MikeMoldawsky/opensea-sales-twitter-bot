@@ -20,14 +20,15 @@ setInterval(() => {
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().startOf('minute').subtract(120, "seconds").toDate();
 
         openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
-            .then( nftSale => {
-                console.log(`Setting lastSale for collection: ${collection} to ${nftSale.created_date}`)
-                const saleTweet = new SaleTweet(nftSale);
-                // TODO: await for tweet
-                tweet.tweet(saleTweet.text);
-                lastSaleForCollectionCache.set(collection, nftSale.created_date);
-                console.log(`<<<<< Successfully tweeted events for collection: ${collection}`)
-
+            .then( nftSales => {
+                nftSales.forEach( nftSale => {
+                    console.log(`Setting lastSale for collection: ${collection} to ${nftSale.created_date}`)
+                    const saleTweet = new SaleTweet(nftSale);
+                    // TODO: await for tweet
+                    tweet.tweet(saleTweet.text);
+                    lastSaleForCollectionCache.set(collection, nftSale.created_date);
+                    console.log(`<<<<< Successfully tweeted events for collection: ${collection}`)
+                });
             })
             .catch((error) => console.error(error)
             );
