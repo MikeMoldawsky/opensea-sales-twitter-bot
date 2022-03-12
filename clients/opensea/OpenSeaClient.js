@@ -5,7 +5,7 @@ const openSeaEventsApi = 'https://api.opensea.io/api/v1/events';
 
 function inTimeFrameSale(occurred_after, nftSale) {
 	const isInTimeFrameSale = _.isNil(occurred_after) || occurred_after < nftSale.created_date;
-	console.log(`${JSON.stringify(nftSale)} is in time frame ${isInTimeFrameSale}`);
+	console.log(`${JSON.stringify(nftSale)} is occurred_after ${occurred_after}: ${isInTimeFrameSale}`);
 	return isInTimeFrameSale;
 }
 
