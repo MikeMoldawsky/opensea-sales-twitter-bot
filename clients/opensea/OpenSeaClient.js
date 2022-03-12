@@ -3,11 +3,16 @@ const _ = require("lodash");
 const createNFTSale = require("../../objects/opensea/OpenSeaNFTSaleConverter");
 const openSeaEventsApi = 'https://api.opensea.io/api/v1/events';
 
+function inTimeFrameSale(occurred_after, nftSale) {
+	const isInTimeFrameSale = _.isNil(occurred_after) || occurred_after < nftSale.created_date;
+	console.log(`${nftSale} is in time frame ${isInTimeFrameSale}`);
+	return isInTimeFrameSale;
+}
+
 class OpenSeaClient {
 	constructor(apiKey) {
 		this.api_key = apiKey;
 	}
-
 
 	async getOpenSeaCollectionSales(collectionSlug, occurred_after) {
 		let isLastPage = false;
@@ -36,7 +41,7 @@ class OpenSeaClient {
 				isLastPage = true;
 			}
 
-		 const salesInTimeFrame = _.filter(nftSales, nftSale => _.isNil(occurred_after) || occurred_after < nftSale.created_date);
+		 const salesInTimeFrame = _.filter(nftSales, nftSale => inTimeFrameSale(occurred_after, nftSale));
 
 		salesInTimeFrame.forEach(sale => nftSalesResult.push(sale));
 		}
