@@ -16,7 +16,7 @@ setInterval(() => {
     const openSeaClient = createOpenSeaClient();
     console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
     _.each(collections, async (collection) => {
-        const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().startOf('minute').subtract(120, "seconds").toDate();
+        const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().subtract(10, "hours").toDate();
 
         openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
             .then( nftSales => {
