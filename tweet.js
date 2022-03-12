@@ -20,7 +20,7 @@ async function tweet(tweetText) {
         if (!error) {
             console.log(`Successfully tweeted: ${tweetText}`);
         } else {
-            console.error(error);
+            console.error(JSON.stringify(error));
         }
     });
 }
