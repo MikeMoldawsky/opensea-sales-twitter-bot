@@ -13,16 +13,16 @@ function sleep(ms) {
 // Poll OpenSea every 60 seconds & retrieve all sales for a given collection in either the time since the last sale OR in the last minute
 setInterval(() => {
     const collections = JSON.parse(process.env.OPENSEA_COLLECTIONS);
+    const tagsWithSpace = _.isNil(process.env.TWITTER_TAGS) ? "" : " " + process.env.TWITTER_TAGS;
     const openSeaClient = createOpenSeaClient();
     console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
     _.each(collections, async (collection) => {
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().subtract(10, "hours").toDate();
-
         openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
             .then( nftSales => {
                 console.log(`##### Tweeting Sales for collection: ${collection} that occurred after ${lastSaleTime} ######`)
                 nftSales.forEach( nftSale => {
-                    const saleTweet = createSaleTweet(nftSale, tags);
+                    const saleTweet = createSaleTweet(nftSale, tagsWithSpace);
                     // TODO: await for tweet
                     tweet.tweet(saleTweet.text);
                     lastSaleForCollectionCache.set(collection, nftSale.created_date);
