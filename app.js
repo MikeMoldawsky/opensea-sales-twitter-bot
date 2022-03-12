@@ -20,7 +20,7 @@ setInterval(() => {
 
         openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
             .then( nftSales => {
-                console.log(`##### Tweeting (if needed) for collection: ${collection} ######`)
+                console.log(`##### Tweeting Sales for collection: ${collection} that occurred after ${lastSaleTime} ######`)
                 nftSales.forEach( nftSale => {
                     const saleTweet = new SaleTweet(nftSale);
                     // TODO: await for tweet
