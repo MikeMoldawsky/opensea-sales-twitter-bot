@@ -4,6 +4,7 @@ const tweet = require('./tweet');
 const lastSaleForCollectionCache = require('./lastSaleForCollectionCache');
 const createOpenSeaClient = require("./clients/opensea/OpenSeaClientFactory");
 const SaleTweet = require("./objects/twitter/SaleTweet");
+const createSaleTweet = require("./objects/twitter/OpenSeaSaleToTweetConverter");
 
 function sleep(ms) {
     console.log(`Sleeping for ${ms} ms before starting next collection...`)
@@ -22,7 +23,7 @@ setInterval(() => {
             .then( nftSales => {
                 console.log(`##### Tweeting Sales for collection: ${collection} that occurred after ${lastSaleTime} ######`)
                 nftSales.forEach( nftSale => {
-                    const saleTweet = new SaleTweet(nftSale);
+                    const saleTweet = new createSaleTweet(nftSale);
                     // TODO: await for tweet
                     tweet.tweet(saleTweet.text);
                     lastSaleForCollectionCache.set(collection, nftSale.created_date);
