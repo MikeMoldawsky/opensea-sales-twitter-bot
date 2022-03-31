@@ -16,7 +16,7 @@ setInterval(() => {
     const tagsWithSpace = _.isNil(process.env.TWITTER_TAGS) ? "" : " " + process.env.TWITTER_TAGS;
     const openSeaClient = createOpenSeaClient();
     console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
-    _.each(collections, async (collection) => {
+    _.each(collections,  (collection) => {
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().subtract(120, "seconds").toDate();
         openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
             .then( nftSales => {
@@ -32,8 +32,7 @@ setInterval(() => {
             })
             .catch((error) => console.error(error)
             );
-        await sleep(5000);
-        console.log(`Sleep complete...`)
+        sleep(5000).then(_ => console.log(`Sleep complete...`));
     });
     console.log(`<<<<<<<<<< Successfully fetched all all sales for collections: ${collections}`)
     }, 120000);
