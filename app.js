@@ -33,6 +33,7 @@ setInterval(() => {
             .catch((error) => console.error(error)
             );
         await sleep(5000);
+        console.log(`Sleep complete...`)
     });
     console.log(`<<<<<<<<<< Successfully fetched all all sales for collections: ${collections}`)
     }, 120000);
