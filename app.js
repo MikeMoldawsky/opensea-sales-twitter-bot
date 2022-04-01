@@ -5,34 +5,57 @@ const lastSaleForCollectionCache = require('./lastSaleForCollectionCache');
 const createOpenSeaClient = require("./clients/opensea/OpenSeaClientFactory");
 const createSaleTweet = require("./objects/twitter/OpenSeaSaleToTweetConverter");
 
-function sleep(ms) {
+async function sleep(ms) {
     console.log(`Sleeping for ${ms} ms before starting next collection...`)
-    return new Promise(resolve => setTimeout(resolve, ms));
+    await new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Poll OpenSea every 60 seconds & retrieve all sales for a given collection in either the time since the last sale OR in the last minute
-setInterval(() => {
-    const collections = JSON.parse(process.env.OPENSEA_COLLECTIONS);
-    const tagsWithSpace = _.isNil(process.env.TWITTER_TAGS) ? "" : " " + process.env.TWITTER_TAGS;
-    const openSeaClient = createOpenSeaClient();
-    console.log(`>>>>>>>>>> Fetching all sales for collections: ${collections}`)
-    _.each(collections,  (collection) => {
+async function tweetSaleForCollection(collection, nftSale) {
+    try {
+        const saleTweet = createSaleTweet(nftSale, tagsWithSpace);
+        console.log(`Tweeting NFT SALE ${nftSale.name} for collection: ${collection} (created_time ${nftSale.created_date})`);
+        await tweet.tweet(saleTweet.text);
+        lastSaleForCollectionCache.set(collection, nftSale.created_date);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function getSalesAndTweetForCollection(collection) {
+    try {
         const lastSaleTime = lastSaleForCollectionCache.get(collection, null) || moment().subtract(120, "seconds").toDate();
-        openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime)
-            .then( nftSales => {
-                console.log(`##### Tweeting Sales for collection: ${collection} that occurred after ${lastSaleTime} ######`)
-                nftSales.forEach( nftSale => {
-                    const saleTweet = createSaleTweet(nftSale, tagsWithSpace);
-                    // TODO: await for tweet
-                    tweet.tweet(saleTweet.text);
-                    lastSaleForCollectionCache.set(collection, nftSale.created_date);
-                    console.log(`Successfully tweeted for collection: ${collection} with created_time ${nftSale.created_date}`)
-                });
-                console.log(`##### Successfully tweeted ${nftSales.length} for collection: ${collection}  ######`)
-            })
-            .catch((error) => console.error(error)
-            );
-        sleep(5000).then(_ => console.log(`Sleep complete...`));
+        console.log(`Fetching OpenSea Sales for ${collection} (after ${lastSaleTime})`);
+        const nftSales = await openSeaClient.getOpenSeaCollectionSales(collection, lastSaleTime);
+        console.log(`Tweeting ${nftSales.length} sales for collection: ${collection}`);
+        return nftSales.map(async (nftSale) => await tweetSaleForCollection(collection, nftSale));
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function tweetCollectionsSales(collections) {
+    console.log(`>>>>>>>>>> Tweet Sales Bot Round STARTED for: ${collections}`)
+    await _.reduce(collections, async (_accumulator, collection) => {
+        await getSalesAndTweetForCollection(collection);
+        await sleep(5000);
+        console.log(`!!!!!! OpenSea API throttling COMPLETED for collection: ${collections}!!!!`);
     });
-    console.log(`<<<<<<<<<< Successfully fetched all all sales for collections: ${collections}`)
-    }, 120000);
+    console.log(`<<<<<<<<<< Tweet Sales Bot Round COMPLETED <<<<<<<<<<`)
+}
+
+const collections = JSON.parse(process.env.OPENSEA_COLLECTIONS);
+const tagsWithSpace = _.isNil(process.env.TWITTER_TAGS) ? "" : " " + process.env.TWITTER_TAGS;
+const openSeaClient = createOpenSeaClient();
+
+async function tweetCollectionsSalesRecursive(delay){
+    try {
+        await tweetCollectionsSales(collections)
+        setTimeout(() => tweetCollectionsSalesRecursive(delay), delay);
+        console.log("")
+    }catch (e) {
+        console.log(e);
+    }
+}
+
+console.log(`################## Tweet Sales Bot ACTIVATED ##################`)
+tweetCollectionsSalesRecursive(120000).catch(e => console.error(e))
