@@ -130,7 +130,7 @@ async function main() {
                     `Tweeting sale for token ${nftSale.tokenId} in collection ${collection}:`,
                     tweetMessage,
                 );
-                // await userClient.v2.tweet(tweetMessage);
+                await userClient.v2.tweet(tweetMessage);
             } catch (error) {
                 console.error(
                     `Failed to tweet sale for token ${nftSale.tokenId} in collection ${collection}:`,
