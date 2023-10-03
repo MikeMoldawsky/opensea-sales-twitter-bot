@@ -3,11 +3,20 @@ import { ethers } from 'ethers';
 import { createClient } from 'redis';
 import { TwitterApi } from 'twitter-api-v2';
 
+const interval_minutes = 6; // Schedule the next run after 6 minutes
+const userClient = new TwitterApi({
+    appKey: process.env.CONSUMER_KEY,
+    appSecret: process.env.CONSUMER_SECRET,
+    accessToken: process.env.ACCESS_TOKEN_KEY,
+    accessSecret: process.env.ACCESS_TOKEN_SECRET,
+});
+
 // NFT SALES CLIENT
-async function getNftSalesForCollection(client, contractAddress, fromBlock) {
+async function getNftSalesForCollection(client, contractAddress, fromBlock, toBlock) {
     const result = await client.nft.getNftSales({
         contractAddress,
-        fromBlock: fromBlock || 'latest',
+        fromBlock,
+        toBlock
     });
     result.nftSales = result.nftSales.filter((sale) => sale.buyerAddress !== sale.sellerAddress);
     return result;
@@ -18,13 +27,6 @@ async function getNftMetadata(client, contractAddress, tokenId) {
 }
 
 // TWITTER
-const userClient = new TwitterApi({
-    appKey: process.env.CONSUMER_KEY,
-    appSecret: process.env.CONSUMER_SECRET,
-    accessToken: process.env.ACCESS_TOKEN_KEY,
-    accessSecret: process.env.ACCESS_TOKEN_SECRET,
-});
-
 function formatEthereumAddress(address) {
     return address.slice(0, 6) + '...' + address.slice(-4);
 }
@@ -76,7 +78,7 @@ function generateTweet(nftSale, nftMetadata) {
 async function getFromBlockCache(redis, contractAddress) {
     const blockNumber = await redis.get(contractAddress);
     console.log(`📜 Retrieved from block number for contract ${contractAddress}: ${blockNumber}`);
-    return blockNumber || 'latest';
+    return blockNumber;
 }
 
 async function setFromBlockCache(redis, contractAddress, fromBlock) {
@@ -85,7 +87,6 @@ async function setFromBlockCache(redis, contractAddress, fromBlock) {
 }
 
 async function main() {
-    console.log(`🤖 Bot waking up: ${new Date().toISOString()}`);
     const redis = await createClient({ url: process.env.REDISCLOUD_URL })
         .on('error', (err) => console.log('Redis Client Error', err))
         .connect();
@@ -94,30 +95,46 @@ async function main() {
         network: Network.ETH_MAINNET,
     });
     const collections = JSON.parse(process.env.NFT_CONTRACTS);
-
+    const toBlock = (await alchemy.core.getBlockNumber()) - 30;
     for (const collection of collections) {
-        console.log(`Processing collection: ${collection}`);
-
         let fromBlock;
         try {
-            fromBlock = await getFromBlockCache(redis, collection);
-            console.log(`Listing sales from block ${fromBlock} for collection ${collection}`);
+            fromBlock = await getFromBlockCache(redis, collection) || toBlock.toString();
+            console.log('>>>>>>>>>> Listing sales for collection', {
+                collection,
+                fromBlock,
+                toBlock,
+            });
+            if (toBlock < BigInt(fromBlock)) {
+                console.log('<<<<<<<<<< Skipping list sales - toBlock < fromBlock', {
+                    fromBlock,
+                    toBlock,
+                });
+                continue;
+            }
         } catch (error) {
-            console.error(`Failed to fetch block number for collection ${collection}:`, error);
+            console.error(
+                `<<<<<<<<<< Failed to fetch block number for collection ${collection}:`,
+                error,
+            );
             continue; // Skip to the next collection
         }
 
         let nftSalesForContract;
         try {
-            nftSalesForContract = await getNftSalesForCollection(alchemy, collection, fromBlock);
+            nftSalesForContract = await getNftSalesForCollection(alchemy, collection, fromBlock, toBlock.toString());
         } catch (error) {
-            console.error(`Failed to fetch sales for collection ${collection}:`, error);
+            console.error(`<<<<<<<<<< Failed to fetch sales for collection ${collection}:`, error);
             continue; // Skip to the next collection
         }
         console.log(
-            `Identifies ${nftSalesForContract.nftSales.length} sales for collection ${collection}`,
+            `[INFO] Identifies ${nftSalesForContract.nftSales.length} sales for collection ${collection}`,
         );
         for (const nftSale of nftSalesForContract.nftSales) {
+            console.log('>>> Tweeting Sale for collection', {
+                collection,
+                tokenId: nftSale.tokenId,
+            });
             try {
                 const nftMetadata = await getNftMetadata(
                     alchemy,
@@ -127,23 +144,34 @@ async function main() {
                 );
                 const tweetMessage = generateTweet(nftSale, nftMetadata);
                 console.log(
-                    `Tweeting sale for token ${nftSale.tokenId} in collection ${collection}:`,
+                    `[INFO] Tweeting sale for token ${nftSale.tokenId} in collection ${collection}:`,
                     tweetMessage,
                 );
                 await userClient.v2.tweet(tweetMessage);
+                console.log('<<< Successfuly tweeted sale', {
+                    collection,
+                    tokenId: nftSale.tokenId,
+                });
             } catch (error) {
                 console.error(
-                    `Failed to tweet sale for token ${nftSale.tokenId} in collection ${collection}:`,
+                    `[ERROR] Failed to tweet sale for token ${nftSale.tokenId} in collection ${collection}:`,
                     error,
                 );
             }
         }
 
         try {
-            const { blockNumber } = nftSalesForContract.validAt;
-            await setFromBlockCache(redis, collection, BigInt(blockNumber + 1).toString());
+            await setFromBlockCache(redis, collection, BigInt(toBlock + 1).toString());
+            console.log('<<<<<<<<<< Successfuly tweeted for collection', {
+                collection,
+                fromBlock,
+                toBlock,
+            });
         } catch (error) {
-            console.error(`Failed to update block number for collection ${collection}:`, error);
+            console.error(
+                `[ERROR] Failed to update block number for collection ${collection}:`,
+                error,
+            );
         }
     }
 
@@ -152,20 +180,20 @@ async function main() {
     } catch (error) {
         console.error('Failed to disconnect from Redis:', error);
     }
-    console.log(`🤖 Bot going to sleep: ${new Date().toISOString()}`);
 }
 
-console.log(`################## Tweet Sales Bot ACTIVATED ##################`);
-const interval_minutes = 4;
 async function continuousExecution() {
     try {
+        console.log(`🤖 Bot waking up: ${new Date().toISOString()}`);
         await main();
     } catch (error) {
         console.error('An error occurred:', error);
     } finally {
-        setTimeout(continuousExecution, interval_minutes * 60 * 1000); // Schedule the next run after 4 minutes
+        console.log("🤖 Bot going to sleep", {from: new Date().toISOString(), numMinutes: interval_minutes});
+        setTimeout(continuousExecution, interval_minutes * 60 * 1000); 
     }
 }
 
 // Start the first execution immediately upon startup
+console.log(`################## Tweet Sales Bot ACTIVATED ##################`);
 continuousExecution();
